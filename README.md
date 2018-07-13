@@ -66,6 +66,10 @@ def produce[T](records: Vector[RecordImpl[T]]): Future[Boolean]
 produce(YOUR_PRODUCE_RECORDS)
 ```
 
+* Stop
+
+Produce stop when all records produced or receive interrupt signal
+
 #### SDK Api Consumer
 
 * Constructor
