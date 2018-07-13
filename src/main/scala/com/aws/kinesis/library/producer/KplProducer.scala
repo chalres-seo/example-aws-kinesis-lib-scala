@@ -1,4 +1,4 @@
-package com.aws.kinesis.kpl
+package com.aws.kinesis.library.producer
 
 import com.amazonaws.services.kinesis.producer._
 import com.aws.credentials.CredentialsFactory
@@ -9,9 +9,8 @@ import com.typesafe.scalalogging.LazyLogging
 import com.utils.AppConfig
 
 import scala.annotation.tailrec
-import scala.concurrent.Future
-
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 case class KplProducer(profileName: String,
                   regionName: String,

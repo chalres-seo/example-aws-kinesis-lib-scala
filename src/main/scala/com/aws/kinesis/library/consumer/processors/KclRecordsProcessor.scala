@@ -1,4 +1,4 @@
-package com.aws.kinesis.kcl.processors
+package com.aws.kinesis.library.consumer.processors
 
 import com.amazonaws.services.kinesis.model.Record
 import com.aws.kinesis.record.handler.ConsumeRecordsHandler

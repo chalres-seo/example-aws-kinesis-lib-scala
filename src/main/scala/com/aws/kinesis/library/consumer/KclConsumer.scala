@@ -1,20 +1,20 @@
-package com.aws.kinesis.kcl
+package com.aws.kinesis.library.consumer
 
 import java.net.InetAddress
-import java.{lang, util}
 import java.util.UUID
+import java.{lang, util}
 
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
 import com.aws.credentials.CredentialsFactory
 import com.aws.kinesis.api.ApiClient
-import com.aws.kinesis.kcl.processors.KclRecordsProcessorFactory
+import com.aws.kinesis.library.consumer.processors.KclRecordsProcessorFactory
 import com.aws.kinesis.record.handler.ConsumeRecordsHandler
 import com.typesafe.scalalogging.LazyLogging
 import com.utils.AppConfig
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.Try
-import scala.concurrent.ExecutionContext.Implicits.global
 
 class KclConsumer(profileName: String,
                   regionName: String,

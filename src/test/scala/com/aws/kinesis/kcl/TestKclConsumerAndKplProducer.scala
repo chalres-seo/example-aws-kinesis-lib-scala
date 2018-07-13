@@ -11,8 +11,9 @@ import com.amazonaws.services.kinesis.model.{Record, ShardIteratorType}
 import com.aws.kinesis.api.ApiClient
 import com.aws.kinesis.api.consumer.ApiConsumer
 import com.aws.kinesis.api.producer.ApiProducer
-import com.aws.kinesis.kcl.processors.KclRecordsProcessorFactory
-import com.aws.kinesis.kpl.KplProducer
+import com.aws.kinesis.library.consumer.KclConsumer
+import com.aws.kinesis.library.consumer.processors.KclRecordsProcessorFactory
+import com.aws.kinesis.library.producer.KplProducer
 import com.aws.kinesis.record.StringRecord
 import com.aws.kinesis.record.handler.RecordsHandler
 import org.hamcrest.CoreMatchers._

@@ -12,6 +12,8 @@ import com.utils.AppUtils
 import scala.util.{Failure, Success, Try}
 
 object RecordsHandler extends LazyLogging with ConsumeRecordsHandler {
+  private val newLine: Array[Byte] = "\n".getBytes(StandardCharsets.UTF_8)
+
   def printStdout[T](records: Vector[Record]): Unit = {
     logger.debug(s"start print stdout handler. record count: ${records.size}")
     records.foreach(println)
@@ -55,27 +57,29 @@ object RecordsHandler extends LazyLogging with ConsumeRecordsHandler {
   def tmpFileout[T](filePathString: String, append: Boolean, records: Vector[Record]): Unit = {
     logger.debug(s"start tmp file out handler. record count: ${records.size}")
 
-    AppUtils.checkDirAndIfNotExistCreate(filePathString)
 
-    val newLine: Array[Byte] = "\n".getBytes(StandardCharsets.UTF_8)
-    val fileOutputStream: FileOutputStream = new FileOutputStream(filePathString, append)
+    if (AppUtils.checkDirAndIfNotExistCreate(filePathString)) {
+      val fileOutputStream: FileOutputStream = new FileOutputStream(filePathString, append)
 
-    records.foreach(record => {
-      Try {
-        record.getData.rewind()
-        fileOutputStream.write(record.getData.array())
-        fileOutputStream.write(newLine)
-        record.getData.rewind()
-      } match {
-        case Success(_) =>
-          logger.debug(s"succeed write to tmp file. file: $filePathString, record: $record")
-        case Failure(t: Throwable) =>
-          logger.error(t.getMessage, t)
-          logger.error(s"failed write to tmp file. file: $filePathString, record: $record")
-      }
-    })
+      records.foreach(record => {
+        Try {
+          record.getData.rewind()
+          fileOutputStream.write(record.getData.array())
+          fileOutputStream.write(newLine)
+          record.getData.rewind()
+        } match {
+          case Success(_) =>
+            logger.debug(s"succeed write to tmp file. file: $filePathString, record: $record")
+          case Failure(t: Throwable) =>
+            logger.error(t.getMessage, t)
+            logger.error(s"failed write to tmp file. file: $filePathString, record: $record")
+        }
+      })
 
-    fileOutputStream.flush()
-    fileOutputStream.close()
+      fileOutputStream.flush()
+      fileOutputStream.close()
+    } else {
+      logger.error(s"failed check dir. skipped records process. dir: $filePathString")
+    }
   }
 }

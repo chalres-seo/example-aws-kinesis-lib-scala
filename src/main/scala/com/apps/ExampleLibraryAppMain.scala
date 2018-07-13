@@ -7,8 +7,8 @@ import com.amazonaws.services.dynamodbv2.model.{ResourceInUseException, Resource
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitialPositionInStream
 import com.amazonaws.services.kinesis.model.Record
 import com.aws.kinesis.api.ApiClient
-import com.aws.kinesis.kcl.KclConsumer
-import com.aws.kinesis.kpl.KplProducer
+import com.aws.kinesis.library.consumer.KclConsumer
+import com.aws.kinesis.library.producer.KplProducer
 import com.aws.kinesis.record.StringRecord
 import com.aws.kinesis.record.handler.{ConsumeRecordsHandler, RecordsHandler}
 import com.typesafe.scalalogging.LazyLogging

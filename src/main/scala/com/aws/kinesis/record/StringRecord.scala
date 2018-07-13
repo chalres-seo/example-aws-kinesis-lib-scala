@@ -10,6 +10,8 @@ import scala.util.Try
 case class StringRecord(partitionKey: String, data: String, sequenceNumber: Option[String])
   extends RecordImpl[String] {
 
+  private val byteBuffer = StringRecord.stringToByteBuffer(data)
+
   override def getPartitionKey: String = partitionKey
   override def getData: String = data
 
@@ -17,7 +19,10 @@ case class StringRecord(partitionKey: String, data: String, sequenceNumber: Opti
   override def getSequenceNumber: Option[String] = sequenceNumber
 
   @throws(classOf[CharacterCodingException])
-  override def getByteBuffer: Try[ByteBuffer] = StringRecord.stringToByteBuffer(data)
+  override def getByteBuffer: Try[ByteBuffer] = {
+    byteBuffer.foreach(_.rewind())
+    byteBuffer
+  }
 
   override def getKinesisRecord: Record = sequenceNumber match {
     case Some(seq) =>
