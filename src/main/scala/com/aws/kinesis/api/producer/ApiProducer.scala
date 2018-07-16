@@ -24,46 +24,32 @@ class ApiProducer(apiClient: ApiClient, streamName: String) extends LazyLogging 
 
   def getStreamName: String = streamName
 
-  /**
-    *
-    * @param records produce records
-    * @tparam T record data type
-    * @return produce records future
-    */
   def produce[T](records: Vector[RecordImpl[T]]): Future[Boolean] = {
     logger.debug(s"produce records to stream. name: $streamName, count: ${records.size}")
 
-    val putRecordsRequestEntryList: Vector[PutRecordsRequestEntry] = records.map(this.toPutRecordsRequestEntry)
-    val putRecordsRequest = new PutRecordsRequest()
-      .withStreamName(streamName)
-      .withRecords(putRecordsRequestEntryList:_*)
-
-    val putRecordsResult: Try[PutRecordsResult] = Try(apiClient.putRecords(putRecordsRequest))
+    val putRecordsRequest = new PutRecordsRequest().withStreamName(streamName)
 
     @tailrec
-    def loop(currentPutRecordsResult: Try[PutRecordsResult], currentPutRecordsRequestEntryList: Vector[PutRecordsRequestEntry]): Boolean = {
-      currentPutRecordsResult match {
-        case Success(result) =>
-          if (result.getFailedRecordCount > 0) {
-            val failedPutRecordsRequestEntryList: Vector[PutRecordsRequestEntry] =
-              this.getFailedPutRecordsRequestEntry(result, currentPutRecordsRequestEntryList)
+    def loop(currentPutRecordsRequestEntryList: Vector[PutRecordsRequestEntry]): Boolean = {
+      putRecordsRequest.setRecords(currentPutRecordsRequestEntryList.asJava)
+
+      apiClient.putRecords(putRecordsRequest) match {
+        case Success(putRecordsResult) =>
+          if (putRecordsResult.getFailedRecordCount > 0) {
+            val failedPutRecordsRequestEntryList = this.getFailedPutRecordsRequestEntry(putRecordsResult, currentPutRecordsRequestEntryList)
 
             logger.debug(s"back-off and failed produce records re-produce. count: ${failedPutRecordsRequestEntryList.size}")
             KinesisRetry.backoff()
-
-            putRecordsRequest.setRecords(failedPutRecordsRequestEntryList.asJava)
-            loop(Try(apiClient.putRecords(putRecordsRequest)), failedPutRecordsRequestEntryList)
+            loop(failedPutRecordsRequestEntryList)
           } else true
-        case Failure(throwable) =>
-          logger.error(s"put records fail. msg : ${throwable.getMessage}")
+        case Failure(t: Throwable) =>
+          logger.error(s"failed put records, stream: $streamName")
           logger.error(s"skipped records. count : ${currentPutRecordsRequestEntryList.size}")
-          currentPutRecordsRequestEntryList.foreach(entry =>
-            logger.error(s"record(partitionKey=${entry.getPartitionKey}, " +
-              s"data=${StringRecord.byteBufferToString(entry.getData)})"))
           false
       }
     }
-    Future(loop(putRecordsResult, putRecordsRequestEntryList))
+
+    Future(loop(records.map(this.toPutRecordsRequestEntry)))
   }
 
   private def getFailedPutRecordsRequestEntry(putRecordsResult: PutRecordsResult,

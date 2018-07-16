@@ -64,7 +64,7 @@ class TestApiClient extends LazyLogging {
     this.cleanUp()
 
     Assert.assertThat(apiClient.isStreamExist(testStreamName), is(false))
-    Assert.assertThat(apiClient.getStreamList.contains(testStreamName), is(false))
+    Assert.assertThat(apiClient.getStreamList.get.contains(testStreamName), is(false))
   }
 
   @Test
@@ -90,8 +90,8 @@ class TestApiClient extends LazyLogging {
   def test03StreamList(): Unit = {
     this.setup()
 
-    Assert.assertThat(apiClient.getStreamList.contains(testStreamName + "_error"), is(false))
-    Assert.assertThat(apiClient.getStreamList.contains(testStreamName), is(true))
+    Assert.assertThat(apiClient.getStreamList.get.contains(testStreamName + "_error"), is(false))
+    Assert.assertThat(apiClient.getStreamList.get.contains(testStreamName), is(true))
   }
 
   @Test
@@ -117,10 +117,10 @@ class TestApiClient extends LazyLogging {
   def test05GetShardList(): Unit = {
     this.setup()
 
-    val shardList: Vector[Shard] = apiClient.getShardList(testStreamName)
+    val shardList: Vector[Shard] = apiClient.getShardList(testStreamName).get
     Assert.assertThat(shardList.length, is(1))
 
-    val shardIteratorList: Vector[String] = apiClient.getShardIteratorList(testStreamName, ShardIteratorType.LATEST)
+    val shardIteratorList: Vector[String] = apiClient.getShardIteratorList(testStreamName, ShardIteratorType.LATEST).get
     Assert.assertThat(shardIteratorList.length, is(1))
   }
 
@@ -131,7 +131,7 @@ class TestApiClient extends LazyLogging {
     val apiConsumer: ApiConsumer = ApiConsumer(testStreamName)
     val apiProducer = ApiProducer(testStreamName)
 
-    val consumerFutures: Vector[Future[Unit]] = apiConsumer.consume {
+    val consumerFutures: Try[Vector[Future[Boolean]]] = apiConsumer.consume {
       records:Vector[Record] => {
         Future(RecordsHandler.printStdout(records))
         Future(RecordsHandler.printData(records))
@@ -145,7 +145,7 @@ class TestApiClient extends LazyLogging {
     Thread.sleep(waitMillis)
     apiProducer.produce(StringRecord.createExampleRecords(testProduceRecordCount))
 
-    val awaitResult: Try[Unit] = Try(Await.result(consumerFutures.head, Duration(waitSec, TimeUnit.SECONDS)))
+    val awaitResult: Try[Unit] = Try(Await.result(consumerFutures.get.head, Duration(waitSec, TimeUnit.SECONDS)))
 
     Assert.assertThat(awaitResult.failed.get.getMessage, is(s"Futures timed out after [$waitSec seconds]"))
     Assert.assertThat(Files.newBufferedReader(Paths.get(stringWriteTmpFilePathString)).lines().count().toInt, is(testProduceRecordCount))

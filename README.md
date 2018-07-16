@@ -3,6 +3,7 @@
 Example Scala library for AWS Kinesis SDK, KCL, KPL
 
 * This example does not cover advanced topics. (re-sharding, exactly once...)
+* The Kinesis library consumer will help you deal with advanced topics.
 * All consumers follow at least one processing rule.
 
 ## Futures

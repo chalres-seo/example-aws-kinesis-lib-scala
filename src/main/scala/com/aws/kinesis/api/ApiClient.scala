@@ -27,25 +27,21 @@ import scala.concurrent.duration.Duration
 class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: AmazonKinesisAsync) extends LazyLogging {
   private val DEFAULT_SHARD_COUNT: Int = AppConfig.DEFAULT_SHARD_COUNT
   private val DEFAULT_INTERVAL_MILLIS: Long = AppConfig.DEFAULT_INTERVAL_MILLIS
+  private val STREAM_EXIST_CONDITION = Vector("CREATING", "DELETING", "ACTIVE", "UPDATING")
 
   def createStream(streamName: String, shardCount: Int): Boolean = {
-    logger.debug(s"create stream. name : $streamName, count : $shardCount")
+    logger.debug(s"create stream. name: $streamName, count: $shardCount")
 
-    Try(KinesisRetry.apiRetry(kinesisClient.createStream(streamName, shardCount))) match {
+    KinesisRetry.apiRetry(kinesisClient.createStream(streamName, shardCount)) match {
       case Success(_) => true
-      case Failure(_: ResourceInUseException) =>
-        logger.debug(s"stream is already exist. name : $streamName")
-        true
-      case Failure(unknown) =>
-        logger.error(s"unknown exception create stream. name : $streamName")
-        logger.error(unknown.getMessage, unknown)
+      case Failure(_: ResourceInUseException) => true
+      case Failure(_: Throwable) =>
+        logger.error(s"failed create stream. name: $streamName, count: $shardCount")
         false
     }
   }
 
-  def createStream(streamName: String): Boolean = {
-    this.createStream(streamName, DEFAULT_SHARD_COUNT)
-  }
+  def createStream(streamName: String): Boolean = this.createStream(streamName, DEFAULT_SHARD_COUNT)
 
   def createStreamAndWaitReady(streamName: String): Boolean = {
     this.createStream(streamName)
@@ -53,68 +49,78 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
   }
 
   def deleteStream(streamName: String): Boolean = {
-    logger.debug(s"delete stream. name : $streamName")
+    logger.debug(s"delete stream. name: $streamName")
 
-    Try(KinesisRetry.apiRetry(kinesisClient.deleteStream(streamName))) match {
+    KinesisRetry.apiRetry(kinesisClient.deleteStream(streamName)) match {
       case Success(_) => true
-      case Failure(_:ResourceNotFoundException) =>
-        logger.debug(s"stream is not exist. name : $streamName")
-        true
-      case Failure(unknown) =>
-        logger.error(s"unknown exception delete stream. name : $streamName")
-        logger.error(unknown.getMessage, unknown)
+      case Failure(_: ResourceNotFoundException) => true
+      case Failure(_: Throwable) =>
+        logger.error(s"failed delete stream. name: $streamName")
         false
     }
   }
 
   /**
+    * Get stream description.
     *
     * @param streamName unchecked stream name.
-    * @throws LimitExceededException retry and throw [[KinesisRetry]].
-    * @throws ResourceNotFoundException throw.
+    * @param exclusiveStartShardId exclusive shard id. (optional)
+    *
+    * @see [[kinesisClient.describeStream]]
+    *
+    * @throws LimitExceededException exceeded request limit, retry and throw. [[KinesisRetry]].
+    * @throws ResourceNotFoundException throw when stream is not exist.
+    *
     * @return stream description.
     */
   @throws(classOf[LimitExceededException])
   @throws(classOf[ResourceNotFoundException])
-  private def getStreamDesc(streamName: String): StreamDescription = {
-    logger.debug(s"get stream description. name : $streamName")
+  private def getStreamDesc(streamName: String, exclusiveStartShardId: Option[String]): Try[StreamDescription] = {
+    val tryGetStreamDesc = exclusiveStartShardId match {
+      case Some(exclusiveShardId) =>
+        logger.debug(s"get stream description exclusive start shardId. name : $streamName, shardId : $exclusiveStartShardId")
+        KinesisRetry.apiRetry(kinesisClient.describeStream(streamName, exclusiveShardId).getStreamDescription)
+      case None =>
+        logger.debug(s"get stream description. name : $streamName")
+        KinesisRetry.apiRetry(kinesisClient.describeStream(streamName).getStreamDescription)
+    }
 
-    KinesisRetry.apiRetry(kinesisClient.describeStream(streamName).getStreamDescription)
+    tryGetStreamDesc
+      .recoverWith {
+        case t:Throwable =>
+          logger.error(s"failed get stream description. name: $streamName")
+          Failure(t)
+      }
   }
 
-  private def getStreamDesc(streamName: String, exclusiveStartShardId: String): StreamDescription = {
-    logger.debug(s"get stream description exclusive start shardId. name : $streamName, shardId : $exclusiveStartShardId")
-
-    KinesisRetry.apiRetry(kinesisClient.describeStream(streamName, exclusiveStartShardId).getStreamDescription)
-  }
+  private def getStreamDesc(streamName: String): Try[StreamDescription] = this.getStreamDesc(streamName, Option.empty[String])
 
   /**
+    * Get stream status.
+    *
     * @param streamName unchecked stream name.
-    * @return stream status
-    *         CREATING, DELETING, ACTIVE, UPDATING [[StreamStatus]]
-    *         custom : NOT_EXIST, UNKNOWN
+    *
+    * @return stream status. [[StreamStatus]]
+    *         Exist status : CREATING, DELETING, ACTIVE, UPDATING
+    *         Not exist status(custom) : NOT_EXIST, UNKNOWN
     */
   def getStreamStatus(streamName: String): String = {
     logger.debug(s"get stream status. name : $streamName")
 
-    Try(this.getStreamDesc(streamName)) match {
+    this.getStreamDesc(streamName) match {
       case Success(streamDescription) => streamDescription.getStreamStatus
-      case Failure(_: ResourceNotFoundException) =>
-        logger.debug("resource not found. (check stream status. not error)")
-        "NOT_EXIST"
-      case Failure(t) =>
-        logger.error(t.getMessage)
-        logger.error("unknown exception", t)
-        "UNKNOWN"
+      case Failure(_: ResourceNotFoundException) => "NOT_EXIST"
+      case Failure(_: Throwable) => "UNKNOWN"
     }
   }
-
 
   def isStreamExist(streamName: String): Boolean = {
     logger.debug(s"check stream exists. name : $streamName")
 
-    this.getStreamStatus(streamName) != "NOT_EXIST"
+    STREAM_EXIST_CONDITION.contains(this.getStreamStatus(streamName))
   }
+
+  def isNotStreamExist(streamName: String): Boolean = !this.isStreamExist(streamName)
 
   def isStreamReady(streamName: String): Boolean = {
     logger.debug(s"check stream ready. name : $streamName")
@@ -122,8 +128,10 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
     this.getStreamStatus(streamName) == "ACTIVE"
   }
 
+  def isNotStreamReady(streamName: String): Boolean = !this.isStreamReady(streamName)
+
   def watchStreamReady(streamName: String, intervalMillis: Long): Future[Boolean] = {
-    logger.debug(s"watch stream ready. name : $streamName")
+    logger.debug(s"watch stream ready. name : $streamName, interval : $intervalMillis millis")
 
     @tailrec
     def loop(streamStatus: String): Boolean = {
@@ -143,9 +151,7 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
     Future(loop(this.getStreamStatus(streamName)))
   }
 
-  def watchStreamReady(streamName: String): Future[Boolean] = {
-    this.watchStreamReady(streamName, DEFAULT_INTERVAL_MILLIS)
-  }
+  def watchStreamReady(streamName: String): Future[Boolean] = this.watchStreamReady(streamName, DEFAULT_INTERVAL_MILLIS)
 
   def waitStreamReady(streamName: String, intervalMillis: Long, waitTimeMillis: Long): Boolean = {
     Await.result(this.watchStreamReady(streamName, intervalMillis), Duration.apply(waitTimeMillis, TimeUnit.MILLISECONDS))
@@ -176,9 +182,7 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
     Future(loop(this.getStreamStatus(streamName)))
   }
 
-  def watchStreamDelete(streamName: String): Future[Boolean] = {
-    this.watchStreamDelete(streamName, DEFAULT_INTERVAL_MILLIS)
-  }
+  def watchStreamDelete(streamName: String): Future[Boolean] = this.watchStreamDelete(streamName, DEFAULT_INTERVAL_MILLIS)
 
   def waitStreamDelete(streamName: String, intervalMillis: Long, waitTimeMillis: Long): Boolean = {
     Await.result(this.watchStreamDelete(streamName, intervalMillis), Duration.apply(waitTimeMillis, TimeUnit.MILLISECONDS))
@@ -189,42 +193,51 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
   }
 
   /**
+    * Get stream list.
     *
-    * @throws LimitExceededException retry and throw [[KinesisRetry]].
+    * @see [[kinesisClient.listStreams]]
+    *
+    * @throws LimitExceededException exceeded request limit, retry and throw. [[KinesisRetry]].
+    *
     * @return stream name list.
     */
   @throws(classOf[LimitExceededException])
-  def getStreamList: Vector[String] = {
+  def getStreamList: Try[Vector[String]] = {
     logger.debug("get stream list.")
 
     @tailrec
-    def loop(currentListStreamResult: ListStreamsResult, currrentStreamNames: Vector[String]): Vector[String] = {
-      (currentListStreamResult.isHasMoreStreams.booleanValue(), currrentStreamNames.nonEmpty) match {
+    def loop(currentListStreamResult: ListStreamsResult, currentStreamNames: Vector[String]): Vector[String] = {
+      (currentListStreamResult.isHasMoreStreams.booleanValue(), currentStreamNames.nonEmpty) match {
         case (true, true) =>
           logger.debug("list stream result has more result.")
-          val nextListStreamResult: ListStreamsResult = KinesisRetry.apiRetry(kinesisClient.listStreams(currrentStreamNames.last))
-          loop(nextListStreamResult, currrentStreamNames ++ nextListStreamResult.getStreamNames.asScala.toVector)
+          val nextListStreamResult: ListStreamsResult = KinesisRetry.apiRetry(kinesisClient.listStreams(currentStreamNames.last)).get
+          loop(nextListStreamResult, currentStreamNames ++ nextListStreamResult.getStreamNames.asScala.toVector)
         case (true, false) =>
-          val nextListStreamResult: ListStreamsResult = KinesisRetry.apiRetry(kinesisClient.listStreams)
+          val nextListStreamResult: ListStreamsResult = KinesisRetry.apiRetry(kinesisClient.listStreams).get
           loop(nextListStreamResult, nextListStreamResult.getStreamNames.asScala.toVector)
-        case (false, _) => currrentStreamNames
+        case (false, _) => currentStreamNames
       }
     }
 
-    val listStreamResult: ListStreamsResult = KinesisRetry.apiRetry(kinesisClient.listStreams())
-    loop(listStreamResult, listStreamResult.getStreamNames.asScala.toVector)
+    KinesisRetry.apiRetry(kinesisClient.listStreams())
+      .map(listStreamResult => loop(listStreamResult, listStreamResult.getStreamNames.asScala.toVector))
   }
 
   /**
+    * Get shard list.
     *
     * @param streamName unchecked stream name.
-    * @throws LimitExceededException retry and throw [[KinesisRetry]].
-    * @throws ResourceNotFoundException throw.
+    *
+    * @see [[getStreamDesc]]
+    *
+    * @throws LimitExceededException exceeded request limit, retry and throw. [[KinesisRetry]].
+    * @throws ResourceNotFoundException throw when stream is not exist.
+    *
     * @return shard list.
     */
   @throws(classOf[LimitExceededException])
   @throws(classOf[ResourceNotFoundException])
-  def getShardList(streamName: String): Vector[Shard] = {
+  def getShardList(streamName: String): Try[Vector[Shard]] = {
     logger.debug(s"get shard list. name : $streamName")
 
     @tailrec
@@ -232,138 +245,186 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
       (currentStreamDescription.isHasMoreShards.booleanValue(), currentShardList.nonEmpty) match {
         case (false, _) => currentShardList
         case (true, true) =>
-          val nextStreamDescription = this.getStreamDesc(streamName, currentShardList.last.getShardId)
+          val nextStreamDescription = this.getStreamDesc(streamName, Option(currentShardList.last.getShardId)).get
           loop(nextStreamDescription, currentShardList ++ nextStreamDescription.getShards.asScala.toVector)
         case (true, false) =>
-          val nextStreamDescription = this.getStreamDesc(streamName)
+          val nextStreamDescription = this.getStreamDesc(streamName).get
           loop(nextStreamDescription, nextStreamDescription.getShards.asScala.toVector)
       }
     }
 
-    val streamDescription = this.getStreamDesc(streamName)
-    loop(streamDescription, streamDescription.getShards.asScala.toVector)
+    this.getStreamDesc(streamName)
+      .map(streamDescription => loop(streamDescription, streamDescription.getShards.asScala.toVector))
   }
 
   /**
+    * Get single shard iterator.
     *
     * @param streamName unchecked stream name.
     * @param shardId shardIterator of shardId.
     * @param shardIteratorType shardIterator type. [[ShardIteratorType]].
     *
-    * @throws ResourceNotFoundException stream is not exist. [[kinesisClient.getShardIterator]]
-    * @throws InvalidArgumentException shardId or shardIterator type error. [[kinesisClient.getShardIterator]]
-    * @throws ProvisionedThroughputExceededException available throughput error. [[kinesisClient.getShardIterator]]
+    * @see [[kinesisClient.getShardIterator]]
+    *
+    * @throws ResourceNotFoundException stream is not exist.
+    * @throws InvalidArgumentException invalid argument error such as shardId or shardIterator.
+    * @throws ProvisionedThroughputExceededException available throughput capacity error.
+    *
     * @return single shard iterator.
     */
   @throws(classOf[ResourceNotFoundException])
   @throws(classOf[InvalidArgumentException])
   @throws(classOf[ProvisionedThroughputExceededException])
-  def getShardIterator(streamName: String, shardId: String, shardIteratorType: ShardIteratorType): String = {
+  def getShardIterator(streamName: String, shardId: String, shardIteratorType: ShardIteratorType): Try[String] = {
     logger.debug(s"get shard iterator. name: $streamName, shardId: $shardId, type: $shardIteratorType")
 
-    kinesisClient.getShardIterator(streamName, shardId, shardIteratorType.toString).getShardIterator
+    KinesisRetry.apiRetry(kinesisClient.getShardIterator(streamName, shardId, shardIteratorType.toString).getShardIterator)
+      .recoverWith {
+        case e: ResourceInUseException =>
+          logger.error(s"failed get shard iterator. stream is not exist, stream: $streamName")
+          Failure(e)
+        case e: InvalidArgumentException =>
+          logger.error(s"failed get shard iterator. invalid argument, stream: $streamName, iterator type: $shardIteratorType")
+          Failure(e)
+        case e: ProvisionedThroughputExceededException =>
+          logger.error(s"failed get shard iterator. provisioned throughput exceeded, stream: $streamName")
+          Failure(e)
+        case t: Throwable =>
+          logger.error(s"failed get shard iterator. unknown exception, stream: $streamName, iterator type: $shardIteratorType")
+          Failure(t)
+      }
   }
 
   /**
+    * Get shard iterator list.
     *
     * @param streamName unchecked stream name.
     * @param shardIteratorType shardIterator type. [[ShardIteratorType]].
     *
     * @see [[getShardIterator]]
     *
+    * @throws ResourceNotFoundException stream is not exist.
+    * @throws InvalidArgumentException invalid argument error such as shardId or shardIterator.
+    * @throws ProvisionedThroughputExceededException available throughput capacity error.
+    *
     * @return shard iterator list. exclusive shard which failed get shard iterator.
     */
-  def getShardIteratorList(streamName: String, shardIteratorType: ShardIteratorType): Vector[String] = {
+
+  @throws(classOf[ResourceNotFoundException])
+  @throws(classOf[InvalidArgumentException])
+  @throws(classOf[ProvisionedThroughputExceededException])
+  def getShardIteratorList(streamName: String, shardIteratorType: ShardIteratorType): Try[Vector[String]] = {
     logger.debug(s"get shard iterator list. name: $streamName, type: $shardIteratorType")
 
-    val getShardIteratorFutures: Vector[Future[Try[String]]] = Try(this.getShardList(streamName)) match {
-      case Success(shardList) => shardList.map(shard => {
-          logger.debug(s"get shard iterator parallel. shardId: ${shard.getShardId}")
-          Future {
-            Try(this.getShardIterator(streamName, shard.getShardId, shardIteratorType)).recoverWith {
-              case throwable =>
-                logger.debug(s"failed. get shard iterator. skipped shard: ${shard.getShardId}")
-                Failure(throwable)
-            }
-          }
-        })
-      case Failure(throwable) =>
-        logger.error("failed get shard list.")
-        throw throwable
-    }
+    val getShardIteratorFutures: Try[Vector[Future[Try[String]]]] = this.getShardList(streamName).map(shardList => {
+      shardList.map(shard => {
+        logger.debug(s"get shard iterator parallel. shardId: ${shard.getShardId}")
+        Future(this.getShardIterator(streamName, shard.getShardId, shardIteratorType))
+      })
+    })
 
-    logger.debug(s"await result get shard iterator. name: $streamName, type: $shardIteratorType")
-
-    for {
-      future <- getShardIteratorFutures
-      if Await.result(future, Duration.Inf).isSuccess
-    } yield Await.result(future, Duration.Inf).get
+    getShardIteratorFutures.map(shardIteratorFutures => {
+      for {
+        tryShardIterator <- shardIteratorFutures.map(Await.result(_, Duration.Inf))
+        if tryShardIterator.isSuccess
+      } yield tryShardIterator.get
+    })
   }
 
   /**
+    * Put Records with PutRecordsRequest.
     *
     * @param putRecordsRequest provided request.
-    * @throws ResourceNotFoundException put records exception. [[kinesisClient.putRecords]]
-    * @throws InvalidArgumentException put records exception. [[kinesisClient.putRecords]]
-    * @throws ProvisionedThroughputExceededException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSDisabledException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSInvalidStateException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSAccessDeniedException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSNotFoundException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSOptInRequiredException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSThrottlingException put records exception. [[kinesisClient.putRecords]]
+    *
+    * @see [[kinesisClient.putRecords]]
+    *
+    * @throws ResourceNotFoundException there is no stream to put records.
+    * @throws InvalidArgumentException invalid argument error to put records.
+    * @throws ProvisionedThroughputExceededException available throughput capacity error.
+    * @throws KMSDisabledException KMS error when putting records
+    * @throws KMSInvalidStateException KMS error when putting records
+    * @throws KMSAccessDeniedException KMS error when putting records
+    * @throws KMSNotFoundException KMS error when putting records
+    * @throws KMSOptInRequiredException KMS error when putting records
+    * @throws KMSThrottlingException KMS error when putting records
+    *
     * @return put record result.
     */
   @throws(classOf[Exception])
-  def putRecords(putRecordsRequest: PutRecordsRequest): PutRecordsResult = {
+  def putRecords(putRecordsRequest: PutRecordsRequest): Try[PutRecordsResult] = {
     logger.debug(s"put records request. stream name: ${putRecordsRequest.getStreamName}, count: ${putRecordsRequest.getRecords.size()}")
-    kinesisClient.putRecords(putRecordsRequest)
+
+    KinesisRetry.apiRetry(kinesisClient.putRecords(putRecordsRequest))
+      .recoverWith {
+        case e:ResourceNotFoundException =>
+          logger.error(s"failed put records. stream is not exist, stream: ${putRecordsRequest.getStreamName}")
+          Failure(e)
+        case e:InvalidArgumentException =>
+          logger.error(s"failed put records. invalid argument. stream: ${putRecordsRequest.getStreamName}")
+          Failure(e)
+        case e:ProvisionedThroughputExceededException =>
+          logger.error(s"failed put records. exceeded provisioned throughput, stream: ${putRecordsRequest.getStreamName}")
+          Failure(e)
+        case t:Throwable =>
+          logger.error(s"failed put records. unknown exception, stream: ${putRecordsRequest.getStreamName}")
+          Failure(t)
+      }
   }
 
   /**
+    * Get Records with GetRecordsRequest.
     *
     * @param getRecordsRequest provided request.
-    * @throws ResourceNotFoundException put records exception. [[kinesisClient.putRecords]]
-    * @throws InvalidArgumentException put records exception. [[kinesisClient.putRecords]]
-    * @throws ProvisionedThroughputExceededException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSDisabledException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSInvalidStateException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSAccessDeniedException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSNotFoundException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSOptInRequiredException put records exception. [[kinesisClient.putRecords]]
-    * @throws KMSThrottlingException put records exception. [[kinesisClient.putRecords]]
+    *
+    * @see [[kinesisClient.getRecords]]
+    *
+    * @throws ResourceNotFoundException there is no stream to get records.
+    * @throws InvalidArgumentException invalid argument error to get records.
+    * @throws ProvisionedThroughputExceededException available throughput capacity error.
+    * @throws KMSDisabledException KMS error when putting records
+    * @throws KMSInvalidStateException KMS error when putting records
+    * @throws KMSAccessDeniedException KMS error when putting records
+    * @throws KMSNotFoundException KMS error when putting records
+    * @throws KMSOptInRequiredException KMS error when putting records
+    * @throws KMSThrottlingException KMS error when putting records
+    *
     * @return get record result.
     */
   @throws(classOf[Exception])
-  def getRecords(getRecordsRequest: GetRecordsRequest): GetRecordsResult = {
+  def getRecords(getRecordsRequest: GetRecordsRequest): Try[GetRecordsResult] = {
     logger.debug(s"get records request.")
-    kinesisClient.getRecords(getRecordsRequest)
+
+
+    KinesisRetry.apiRetry(kinesisClient.getRecords(getRecordsRequest))
+      .recoverWith {
+        case e:ResourceNotFoundException =>
+          logger.error(s"failed get records. stream is not exist.")
+          Failure(e)
+        case e:InvalidArgumentException =>
+          logger.error(s"failed get records. invalid argument.")
+          Failure(e)
+        case e:ProvisionedThroughputExceededException =>
+          logger.error(s"failed get records. exceeded provisioned throughput.")
+          Failure(e)
+        case t:Throwable =>
+          logger.error("failed get records. unknown exception.")
+          Failure(t)
+      }
   }
 
   /**
+    * Check stream exist and ready.
     *
     * @param streamName unchecked stream name.
-    * @throws ResourceNotFoundException throw exception when stream is not exist or ready.
-    * @return returns true if the stream is ready. Otherwise, it returns false.
+    *
+    * @return returns true if the stream is ready. Otherwise, return false.
     */
-  @throws(classOf[ResourceNotFoundException])
   def checkStreamExistAndReady(streamName: String): Boolean = {
-    if (!this.isStreamExist(streamName)) {
-      logger.error(s"stream is not exist. name: $streamName")
-      //throw new ResourceNotFoundException(s"stream is not exist. name: $streamName")
-      return false
-    }
+    logger.debug("check stream exist and ready.")
 
-    if (!this.isStreamReady(streamName)) {
-      logger.error(s"stream is not ready. wait for ready, name: $streamName")
-      if (!KinesisRetry.apiRetry(this.waitStreamReady(streamName))) {
-        logger.error(s"failed wait for stream ready. name: $streamName")
-        //throw new ResourceNotFoundException(s"stream is exist but not ready. name: $streamName")
-        return false
-      }
-    }
-
-    this.isStreamReady(streamName)
+    if (this.isNotStreamExist(streamName)) false
+    else if (this.isNotStreamReady(streamName)) this.waitStreamReady(streamName)
+    else true
   }
 }
 
@@ -389,7 +450,7 @@ object ApiClient extends LazyLogging {
     logger.debug(s"profile : $profileName, region : $regionName")
 
     kinesisAsyncClientList
-      .getOrElse(makeKey(profileName, regionName), this.createKinesisClient(profileName, regionName))
+      .getOrElseUpdate(s"$profileName::$regionName", this.createKinesisClient(profileName, regionName))
   }
 
   private def createKinesisClient(profileName: String, regionName: String): AmazonKinesisAsync = {
@@ -402,7 +463,4 @@ object ApiClient extends LazyLogging {
       .withRegion(regionName)
       .build()
   }
-
-  private def makeKey: String = this.makeKey(DEFAULT_AWS_REGION_NAME, DEFAULT_AWS_REGION_NAME)
-  private def makeKey(profileName: String, regionName: String): String = s"$profileName::$regionName"
 }

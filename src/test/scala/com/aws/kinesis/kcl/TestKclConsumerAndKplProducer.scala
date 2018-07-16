@@ -27,6 +27,7 @@ import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
+import scala.io.Source
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class TestKclConsumerAndKplProducer extends LazyLogging {

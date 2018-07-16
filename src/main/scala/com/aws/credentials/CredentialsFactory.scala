@@ -19,13 +19,13 @@ object CredentialsFactory extends LazyLogging {
   def getCredentialsProvider: AWSCredentialsProvider = {
     logger.debug("get aws default credentials provider")
 
-    credentialsProviderList.getOrElse(DEFAULT_AWS_PROFILE_NAME, this.createCredentialsProvider)
+    credentialsProviderList.getOrElseUpdate(DEFAULT_AWS_PROFILE_NAME, this.createCredentialsProvider)
   }
 
   def getCredentialsProvider(profileName: String): AWSCredentialsProvider = {
     logger.debug(s"get aws profile credentials provider, profile : $profileName")
 
-    credentialsProviderList.getOrElse(DEFAULT_AWS_PROFILE_NAME, this.createCredentialsProvider(profileName))
+    credentialsProviderList.getOrElseUpdate(profileName, this.createCredentialsProvider(profileName))
   }
 
   private def createCredentialsProvider: DefaultAWSCredentialsProviderChain = {

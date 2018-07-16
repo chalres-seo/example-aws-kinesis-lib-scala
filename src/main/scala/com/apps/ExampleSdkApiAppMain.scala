@@ -53,7 +53,7 @@ object ExampleSdkApiAppMain extends LazyLogging {
   // Your Code here
   def exampleRun(): Unit = {
     // consumer start.
-    val consumerFutures = this.consume(streamName, yourConsumeFileoutPathString)
+    val consumerFutures: Try[Vector[Future[Boolean]]] = this.consume(streamName, yourConsumeFileoutPathString)
 
     // wait consumer bootstrap.
     Thread.sleep(5000)
@@ -62,7 +62,7 @@ object ExampleSdkApiAppMain extends LazyLogging {
     this.produce(streamName, yourProduceFromFilePathString)
 
     // wait consumer consume example.
-    logger.debug(Try(Await.result(consumerFutures.head, Duration(10, TimeUnit.SECONDS))).failed.get.getMessage)
+    logger.debug(Try(Await.result(consumerFutures.get.head, Duration(10, TimeUnit.SECONDS))).failed.get.getMessage)
   }
 
   def createStream(streamName: String, shardCount: Int): Boolean = {
@@ -106,7 +106,7 @@ object ExampleSdkApiAppMain extends LazyLogging {
     apiProducer.produce(lines.map(line => StringRecord(s"pk-$line", line)).toVector)
   }
 
-  def consume(streamName: String, consumeRecordFileoutPathString: String): Vector[Future[Unit]] = {
+  def consume(streamName: String, consumeRecordFileoutPathString: String): Try[Vector[Future[Boolean]]] = {
     val apiConsumer: ApiConsumer = ApiConsumer(streamName)
 
     // composed records handler

@@ -26,7 +26,8 @@ trait Retry extends LazyLogging {
     try {
       Thread.sleep(millis)
     } catch {
-      case e: InterruptedException => logger.error("interrupted sleep", e)
+      case e: InterruptedException =>
+        logger.error("interrupted sleep", e)
       case t: Throwable =>
         logger.error("unknown exception thread sleep")
         logger.error(t.getMessage, t)

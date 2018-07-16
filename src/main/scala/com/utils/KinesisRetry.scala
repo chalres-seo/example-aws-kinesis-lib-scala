@@ -11,13 +11,18 @@ object KinesisRetry extends LazyLogging with Retry {
   private val defaultBackoffTimeInMillis: Long = AppConfig.DEFAULT_BACKOFF_TIME_IN_MILLIS
   private val defaultMaxAttemptCount: Int = AppConfig.DEFAULT_ATTEMPT_COUNT
 
-  def apiRetry[T](fn: => T): T = this.apiRetryWithBackoff(defaultMaxAttemptCount, defaultBackoffTimeInMillis)(fn)
-  def checkPointRetry[T](fn: => T): Unit = this.checkPointRetryWithBackoff(defaultMaxAttemptCount, defaultBackoffTimeInMillis)(fn)
-  def processRecordsRetry[T](fn: => T): Unit = this.processRecordsRetryWithBackoff(defaultMaxAttemptCount, defaultBackoffTimeInMillis)(fn)
+  @throws(classOf[Exception])
+  def apiRetry[T](fn: => T): Try[T] = Try(this.apiRetryWithBackoff(defaultMaxAttemptCount, defaultBackoffTimeInMillis)(fn))
+
+  @throws(classOf[Exception])
+  def checkPointRetry[T](fn: => T): Try[Unit] =  Try(this.checkPointRetryWithBackoff(defaultMaxAttemptCount, defaultBackoffTimeInMillis)(fn))
+
+  @throws(classOf[Exception])
+  def libraryProcessRecordsRetry[T](fn: => T): Try[Unit] = Try(this.libraryProcessRecordsRetryWithBackoff(defaultMaxAttemptCount, defaultBackoffTimeInMillis)(fn))
 
   @throws(classOf[Exception])
   @tailrec
-  def apiRetryWithBackoff[T](attemptCount: Int, backoffMillis: Long)(fn: => T): T = {
+  private def apiRetryWithBackoff[T](attemptCount: Int, backoffMillis: Long)(fn: => T): T = {
     Try(fn) match {
       case Success(result) => result
 
@@ -38,6 +43,16 @@ object KinesisRetry extends LazyLogging with Retry {
         this.backoff(backoffMillis)
         apiRetryWithBackoff(attemptCount - 1, backoffMillis)(fn)
 
+      case Failure(e: InvalidArgumentException) =>
+        logger.error(s"invalid argument exception. the remaining attempts will be skipped.")
+        logger.error(e.getMessage)
+        throw e
+
+      case Failure(e: ProvisionedThroughputExceededException) =>
+        logger.error(s"provisioned throughput exceeded exception. the remaining attempts will be skipped.")
+        logger.error(e.getMessage)
+        throw e
+
       case Failure(t: Throwable) =>
         if (attemptCount <= 0) logger.debug("attempts has been exceeded.")
         else logger.error(s"unknown exception.")
@@ -47,7 +62,7 @@ object KinesisRetry extends LazyLogging with Retry {
   }
 
   @tailrec
-  def checkPointRetryWithBackoff[T](attemptCount: Int, backoffMillis: Long)(fn: => Unit): Unit = {
+  private def checkPointRetryWithBackoff[T](attemptCount: Int, backoffMillis: Long)(fn: => Unit): Unit = {
     Try(fn) match {
       case Success(_) =>
         logger.debug("success checkpoint")
@@ -83,7 +98,8 @@ object KinesisRetry extends LazyLogging with Retry {
     }
   }
 
-  def processRecordsRetryWithBackoff[T](attemptCount: Int, backoffMillis: Long)(fn: => Unit): Unit = {
+  @tailrec
+  private def libraryProcessRecordsRetryWithBackoff[T](attemptCount: Int, backoffMillis: Long)(fn: => Unit): Unit = {
     Try(fn) match {
       case Success(_) =>
         logger.debug("success process records")
@@ -102,7 +118,7 @@ object KinesisRetry extends LazyLogging with Retry {
         logger.error(e.getMessage)
 
         this.backoff(backoffMillis)
-        checkPointRetryWithBackoff(attemptCount - 1, backoffMillis)(fn)
+        libraryProcessRecordsRetryWithBackoff(attemptCount - 1, backoffMillis)(fn)
 
       case Failure(e: ShutdownException) =>
         logger.debug("caught shutdown exception, skipping checkpoint.")
