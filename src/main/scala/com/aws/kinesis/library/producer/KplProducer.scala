@@ -20,7 +20,6 @@ case class KplProducer(profileName: String,
   def produceRecords[T](records: Vector[RecordImpl[T]]): Future[Boolean] = {
     logger.debug(s"producer records. stream name: $streamName, record count: ${records.size}")
 
-
     @tailrec
     def loop(currentFailedRecord: Vector[RecordImpl[T]]): Vector[RecordImpl[T]] = {
       if (currentFailedRecord.nonEmpty) {
@@ -30,7 +29,6 @@ case class KplProducer(profileName: String,
         currentFailedRecord
       }
     }
-
     Future(loop(this.addUserRecords(records)).isEmpty)
   }
 
@@ -40,9 +38,11 @@ case class KplProducer(profileName: String,
     * @tparam T produce record data type.
     *
     * [[KinesisProducer].addUserRecord]]
+    *
     * @throws java.lang.IllegalArgumentException kpl exception.
     * @throws com.amazonaws.services.kinesis.producer.DaemonException kpl exception.
-    * @return
+    *
+    * @return filed records.
     */
   @throws(classOf[IllegalArgumentException])
   @throws(classOf[DaemonException])

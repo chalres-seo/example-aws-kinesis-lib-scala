@@ -9,9 +9,8 @@ import com.utils.{AppConfig, KinesisRetry}
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success, Try}
 
 /**
