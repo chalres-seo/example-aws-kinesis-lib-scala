@@ -21,7 +21,7 @@ class KclConsumer(profileName: String,
                   streamName: String,
                   consumeAppName: String,
                   initialStreamPosition: InitialPositionInStream
-                 )(handler: ConsumeRecordsHandler.RecordsHandlerType) extends LazyLogging {
+                 )(handler: ConsumeRecordsHandler.KinesisRecordsHandlerType) extends LazyLogging {
 
   private val workerId: String = Try(InetAddress.getLocalHost.getCanonicalHostName).getOrElse("unknown-host") + ":" + UUID.randomUUID()
   private val config: KinesisClientLibConfiguration = new KinesisClientLibConfiguration(consumeAppName,
@@ -55,7 +55,7 @@ object KclConsumer extends LazyLogging {
             streamName: String,
             consumeAppName: String,
             initialStreamPosition: InitialPositionInStream)
-           (handler: ConsumeRecordsHandler.RecordsHandlerType): KclConsumer = {
+           (handler: ConsumeRecordsHandler.KinesisRecordsHandlerType): KclConsumer = {
 
     logger.debug(s"construct kcl consumer. profile: $profileName, region: $regionName, stream name: $streamName " +
       s"consume-app name: $consumeAppName, init-position: $initialStreamPosition")
@@ -74,7 +74,7 @@ object KclConsumer extends LazyLogging {
             regionName: String,
             streamName: String,
             consumeAppName: String)
-           (handler: ConsumeRecordsHandler.RecordsHandlerType): KclConsumer = {
+           (handler: ConsumeRecordsHandler.KinesisRecordsHandlerType): KclConsumer = {
     this.apply(profileName: String,
       regionName: String,
       streamName: String,
@@ -85,7 +85,7 @@ object KclConsumer extends LazyLogging {
   def apply(streamName: String,
             consumeAppName: String,
             initialStreamPosition: InitialPositionInStream)
-           (handler: ConsumeRecordsHandler.RecordsHandlerType): KclConsumer = {
+           (handler: ConsumeRecordsHandler.KinesisRecordsHandlerType): KclConsumer = {
     this.apply(DEFAULT_AWS_PROFILE_NAME: String,
       DEFAULT_AWS_REGION_NAME: String,
       streamName: String,
@@ -95,7 +95,7 @@ object KclConsumer extends LazyLogging {
 
   def apply(streamName: String,
             consumeAppName: String)
-           (handler: ConsumeRecordsHandler.RecordsHandlerType): KclConsumer = {
+           (handler: ConsumeRecordsHandler.KinesisRecordsHandlerType): KclConsumer = {
     this.apply(DEFAULT_AWS_PROFILE_NAME: String,
       DEFAULT_AWS_REGION_NAME: String,
       streamName: String,

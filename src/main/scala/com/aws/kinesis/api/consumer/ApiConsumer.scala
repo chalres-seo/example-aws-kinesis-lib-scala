@@ -46,7 +46,7 @@ class ApiConsumer(apiClient: ApiClient, streamName: String) extends LazyLogging 
     */
   @throws(classOf[Exception])
   def consume(interValMillis: Long, shardIteratorType: ShardIteratorType)
-             (recordsHandler: ConsumeRecordsHandler.RecordsHandlerType): Try[Vector[Future[Boolean]]] = {
+             (recordsHandler: ConsumeRecordsHandler.KinesisRecordsHandlerType): Try[Vector[Future[Boolean]]] = {
     apiClient.getShardList(streamName).map(shardList => {
       shardList.map(shard => {
         consumeLoop(shard.getShardId, shardIteratorType, interValMillis)(recordsHandler)
@@ -54,7 +54,7 @@ class ApiConsumer(apiClient: ApiClient, streamName: String) extends LazyLogging 
     })
   }
 
-  def consume(recordsHandler: ConsumeRecordsHandler.RecordsHandlerType): Try[Vector[Future[Boolean]]] =
+  def consume(recordsHandler: ConsumeRecordsHandler.KinesisRecordsHandlerType): Try[Vector[Future[Boolean]]] =
     consume(DEFAULT_INTERVAL_MILLIS, DEFAULT_SHARD_ITERATOR_TYPE)(recordsHandler)
 
   /**
@@ -79,7 +79,7 @@ class ApiConsumer(apiClient: ApiClient, streamName: String) extends LazyLogging 
     */
   @throws(classOf[Exception])
   private def consumeLoop(shardId: String, shardIteratorType: ShardIteratorType, intervalMillis: Long)
-                         (recordsHandler: ConsumeRecordsHandler.RecordsHandlerType): Future[Boolean] = {
+                         (recordsHandler: ConsumeRecordsHandler.KinesisRecordsHandlerType): Future[Boolean] = {
     logger.debug(s"start consume loop. loop-iterator-shardId-$shardId")
 
     val getRecordsRequest: GetRecordsRequest = new GetRecordsRequest()

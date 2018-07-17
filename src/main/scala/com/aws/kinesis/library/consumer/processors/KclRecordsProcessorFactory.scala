@@ -4,6 +4,6 @@ import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProces
 import com.aws.kinesis.record.handler.ConsumeRecordsHandler
 import com.typesafe.scalalogging.LazyLogging
 
-class KclRecordsProcessorFactory(handler: ConsumeRecordsHandler.RecordsHandlerType) extends LazyLogging with IRecordProcessorFactory {
+class KclRecordsProcessorFactory(handler: ConsumeRecordsHandler.KinesisRecordsHandlerType) extends LazyLogging with IRecordProcessorFactory {
   override def createProcessor(): IRecordProcessor = new KclRecordsProcessor(handler)
 }

@@ -1,17 +1,15 @@
 package com.apps
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.util.concurrent.TimeUnit
 
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import com.amazonaws.services.kinesis.model.Record
 import com.aws.kinesis.api.ApiClient
 import com.aws.kinesis.api.consumer.ApiConsumer
 import com.aws.kinesis.api.producer.ApiProducer
 import com.aws.kinesis.record.StringRecord
-import com.aws.kinesis.record.handler.{ConsumeRecordsHandler, RecordsHandler}
+import com.aws.kinesis.record.handler.{ConsumeRecordsHandler, RecordHandler}
 import com.typesafe.scalalogging.LazyLogging
-import com.utils.AppConfig
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{Await, Future}
@@ -110,11 +108,13 @@ object ExampleSdkApiAppMain extends LazyLogging {
     val apiConsumer: ApiConsumer = ApiConsumer(streamName)
 
     // composed records handler
-    val recordsHandler: ConsumeRecordsHandler.RecordsHandlerType = {
+    val recordsHandler: ConsumeRecordsHandler.KinesisRecordsHandlerType = {
       records:Vector[Record] => {
-        Future(RecordsHandler.debugStdout(records))
-        Future(RecordsHandler.debugData(records))
-        Future(RecordsHandler.tmpFileout(consumeRecordFileoutPathString, append = false, records))
+        val stringRecords: Vector[StringRecord] = StringRecord.recordsToStringRecords(records)
+
+        Future(RecordHandler.printStdout(stringRecords))
+        Future(RecordHandler.debugStdout(stringRecords))
+        Future(RecordHandler.tmpFileout(stringRecords, yourConsumeFileoutPathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
       }
     }
 

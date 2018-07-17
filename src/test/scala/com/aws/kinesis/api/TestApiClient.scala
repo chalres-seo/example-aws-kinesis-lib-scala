@@ -1,14 +1,14 @@
 package com.aws.kinesis.api
 
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.util.concurrent.TimeUnit
 
 import com.amazonaws.services.kinesis.model.{Record, Shard, ShardIteratorType}
 import com.aws.kinesis.api.consumer.ApiConsumer
 import com.aws.kinesis.api.producer.ApiProducer
 import com.aws.kinesis.record.StringRecord
-import com.aws.kinesis.record.handler.RecordsHandler
+import com.aws.kinesis.record.handler.RecordHandler
 import org.hamcrest.CoreMatchers._
 import com.typesafe.scalalogging.LazyLogging
 import org.junit.{Assert, FixMethodOrder, Test}
@@ -25,8 +25,7 @@ class TestApiClient extends LazyLogging {
 
   private val testStreamName: String = "test-stream"
 
-  private val stringWriteTmpFilePathString = "tmp/file.string"
-  private val byteWriteTmpFilePathString = "tmp/file.byte"
+  private val tmpFilePathString = "tmp/file.out"
 
   private val testProduceRecordCount = 10
 
@@ -40,8 +39,7 @@ class TestApiClient extends LazyLogging {
       apiClient.waitStreamReady(testStreamName)
     }
 
-    Files.deleteIfExists(Paths.get(stringWriteTmpFilePathString))
-    Files.deleteIfExists(Paths.get(byteWriteTmpFilePathString))
+    Files.deleteIfExists(Paths.get(tmpFilePathString))
   }
 
   def cleanUp(): Unit = {
@@ -50,8 +48,7 @@ class TestApiClient extends LazyLogging {
       apiClient.waitStreamDelete(testStreamName)
     }
 
-    Files.deleteIfExists(Paths.get(stringWriteTmpFilePathString))
-    Files.deleteIfExists(Paths.get(byteWriteTmpFilePathString))
+    Files.deleteIfExists(Paths.get(tmpFilePathString))
   }
 
   @Test
@@ -133,12 +130,11 @@ class TestApiClient extends LazyLogging {
 
     val consumerFutures: Try[Vector[Future[Boolean]]] = apiConsumer.consume {
       records:Vector[Record] => {
-        Future(RecordsHandler.printStdout(records))
-        Future(RecordsHandler.printData(records))
-        Future(RecordsHandler.debugStdout(records))
-        Future(RecordsHandler.debugData(records))
-        Future(RecordsHandler.tmpFileout(stringWriteTmpFilePathString, append = false, records))
-        Future(RecordsHandler.tmpFileout(byteWriteTmpFilePathString, append = false, records))
+        val stringRecords: Vector[StringRecord] = StringRecord.recordsToStringRecords(records)
+
+        Future(RecordHandler.printStdout(stringRecords))
+        Future(RecordHandler.debugStdout(stringRecords))
+        Future(RecordHandler.tmpFileout(stringRecords, tmpFilePathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
       }
     }
 
@@ -148,7 +144,6 @@ class TestApiClient extends LazyLogging {
     val awaitResult: Try[Unit] = Try(Await.result(consumerFutures.get.head, Duration(waitSec, TimeUnit.SECONDS)))
 
     Assert.assertThat(awaitResult.failed.get.getMessage, is(s"Futures timed out after [$waitSec seconds]"))
-    Assert.assertThat(Files.newBufferedReader(Paths.get(stringWriteTmpFilePathString)).lines().count().toInt, is(testProduceRecordCount))
-    Assert.assertThat(Files.newBufferedReader(Paths.get(byteWriteTmpFilePathString)).lines().count().toInt, is(testProduceRecordCount))
+    Assert.assertThat(Files.newBufferedReader(Paths.get(tmpFilePathString)).lines().count().toInt, is(testProduceRecordCount))
   }
 }

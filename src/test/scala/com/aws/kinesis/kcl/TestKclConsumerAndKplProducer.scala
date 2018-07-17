@@ -1,6 +1,6 @@
 package com.aws.kinesis.kcl
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.{lang, util}
 import java.util.concurrent.{TimeUnit, TimeoutException}
 
@@ -15,7 +15,7 @@ import com.aws.kinesis.library.consumer.KclConsumer
 import com.aws.kinesis.library.consumer.processors.KclRecordsProcessorFactory
 import com.aws.kinesis.library.producer.KplProducer
 import com.aws.kinesis.record.StringRecord
-import com.aws.kinesis.record.handler.RecordsHandler
+import com.aws.kinesis.record.handler.RecordHandler
 import org.hamcrest.CoreMatchers._
 import com.typesafe.scalalogging.LazyLogging
 import com.utils.AppConfig
@@ -35,8 +35,7 @@ class TestKclConsumerAndKplProducer extends LazyLogging {
 
   private val testStreamName: String = "test-stream"
 
-  private val stringWriteTmpFilePathString = "tmp/file.string"
-  private val byteWriteTmpFilePathString = "tmp/file.byte"
+  private val tmpFilePathString = "tmp/file.out"
 
   private val testConsumerAppName = "test-consumer-app"
 
@@ -51,8 +50,7 @@ class TestKclConsumerAndKplProducer extends LazyLogging {
       apiClient.waitStreamReady(testStreamName)
     }
 
-    Files.deleteIfExists(Paths.get(stringWriteTmpFilePathString))
-    Files.deleteIfExists(Paths.get(byteWriteTmpFilePathString))
+    Files.deleteIfExists(Paths.get(tmpFilePathString))
 
     val dynamodbClient = AmazonDynamoDBClientBuilder.standard()
       .withRegion(AppConfig.DEFAULT_AWS_REGION_NAME)
@@ -73,8 +71,7 @@ class TestKclConsumerAndKplProducer extends LazyLogging {
       apiClient.waitStreamDelete(testStreamName)
     }
 
-    Files.deleteIfExists(Paths.get(stringWriteTmpFilePathString))
-    Files.deleteIfExists(Paths.get(byteWriteTmpFilePathString))
+    Files.deleteIfExists(Paths.get(tmpFilePathString))
 
     val dynamodbClient = AmazonDynamoDBClientBuilder.standard()
       .withRegion(AppConfig.DEFAULT_AWS_REGION_NAME)
@@ -105,12 +102,11 @@ class TestKclConsumerAndKplProducer extends LazyLogging {
     val kplProducer: KplProducer = KplProducer(testStreamName)
     val kclConsumer = KclConsumer(testStreamName, testConsumerAppName, InitialPositionInStream.LATEST) {
       records:Vector[Record] => {
-        Future(RecordsHandler.printStdout(records))
-        Future(RecordsHandler.printData(records))
-        Future(RecordsHandler.debugStdout(records))
-        Future(RecordsHandler.debugData(records))
-        Future(RecordsHandler.tmpFileout(stringWriteTmpFilePathString, append = false, records))
-        Future(RecordsHandler.tmpFileout(byteWriteTmpFilePathString, append = false, records))
+        val stringRecords: Vector[StringRecord] = StringRecord.recordsToStringRecords(records)
+
+        Future(RecordHandler.printStdout(stringRecords))
+        Future(RecordHandler.debugStdout(stringRecords))
+        Future(RecordHandler.tmpFileout(stringRecords, tmpFilePathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
       }
     }
 
@@ -126,7 +122,6 @@ class TestKclConsumerAndKplProducer extends LazyLogging {
     val kclConsumerShutdownFuture: util.concurrent.Future[lang.Boolean] = kclConsumer.startGracefulShutdown()
     kclConsumerShutdownFuture.get()
 
-    Assert.assertThat(Files.newBufferedReader(Paths.get(stringWriteTmpFilePathString)).lines().count().toInt, is(testProduceRecordCount))
-    Assert.assertThat(Files.newBufferedReader(Paths.get(byteWriteTmpFilePathString)).lines().count().toInt, is(testProduceRecordCount))
+    Assert.assertThat(Files.newBufferedReader(Paths.get(tmpFilePathString)).lines().count().toInt, is(testProduceRecordCount))
   }
 }

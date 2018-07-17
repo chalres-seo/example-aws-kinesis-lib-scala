@@ -32,6 +32,21 @@ class StringRecord(partitionKey: String, data: String, sequenceNumber: Option[St
       .withPartitionKey(partitionKey)
       .withData(byteBuffer.orNull)
   }
+
+  override def toString = s"StringRecord($getPartitionKey, $getData, $getSequenceNumber, $byteBuffer)"
+
+  override def equals(other: Any): Boolean = other match {
+    case that: StringRecord =>
+        partitionKey == that.getPartitionKey &&
+        data == that.getData &&
+        byteBuffer == that.getByteBuffer
+    case _ => false
+  }
+
+  override def hashCode(): Int = {
+    val state = Seq(partitionKey, data, byteBuffer)
+    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
+  }
 }
 
 object StringRecord extends LazyLogging {
@@ -48,29 +63,25 @@ object StringRecord extends LazyLogging {
 
   @throws(classOf[CharacterCodingException])
   def apply(partitionKey: String, byteBuffer: ByteBuffer): Try[StringRecord] = {
-    val buffer = byteBuffer.asReadOnlyBuffer()
-    buffer.rewind()
-
-    Try(new StringRecord(partitionKey, byteBufferToString(buffer).get, Option.empty[String]))
+    Try(new StringRecord(partitionKey, byteBufferToString(byteBuffer.asReadOnlyBuffer()).get, Option.empty[String]))
   }
 
   @throws(classOf[CharacterCodingException])
   def apply(record: Record): Try[StringRecord] = {
-    val buffer = record.getData.asReadOnlyBuffer()
-    buffer.rewind()
-
-    Try(new StringRecord(record.getPartitionKey, byteBufferToString(buffer).get, Option(record.getSequenceNumber)))
+    Try(new StringRecord(record.getPartitionKey, byteBufferToString(record.getData.asReadOnlyBuffer).get, Option(record.getSequenceNumber)))
   }
 
   @throws(classOf[CharacterCodingException])
   def byteBufferToString(byteBuffer: ByteBuffer): Try[String] = {
+    byteBuffer.rewind()
+
     Try(decoder.decode(byteBuffer).toString).recoverWith {
       case e: CharacterCodingException =>
-        logger.error(s"failed decode byte buffer.")
+        logger.error(s"failed decode byte buffer. byteBuffer: $byteBuffer")
         logger.error(e.getMessage)
         Failure(e)
       case t: Throwable =>
-        logger.error(s"failed decode byte byffer. unknown exception.")
+        logger.error(s"failed decode byte buffer. unknown exception. byteBuffer: $byteBuffer")
         logger.error(t.getMessage, t)
         Failure(t)
     }
@@ -80,14 +91,21 @@ object StringRecord extends LazyLogging {
   def stringToByteBuffer(s: String): Try[ByteBuffer] = {
     Try(encoder.encode(CharBuffer.wrap(s))).recoverWith {
       case e: CharacterCodingException =>
-        logger.error(s"failed encode data. data: ${s}")
+        logger.error(s"failed encode data. data: $s")
         logger.error(e.getMessage)
         Failure(e)
       case t: Throwable =>
-        logger.error(s"failed encode data. unknown exception. data: ${s}")
+        logger.error(s"failed encode data. unknown exception. data: $s")
         logger.error(t.getMessage, t)
         Failure(t)
     }
+  }
+
+  def recordsToStringRecords(records: Vector[Record]): Vector[StringRecord] = {
+    for {
+      record <- records.map(StringRecord(_))
+      if record.isSuccess
+    } yield record.get
   }
 
   def createExampleRecords(recordCount: Int): Vector[StringRecord] =

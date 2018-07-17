@@ -1,6 +1,6 @@
 package com.apps
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Paths, StandardOpenOption}
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import com.amazonaws.services.dynamodbv2.model.{ResourceInUseException, ResourceNotFoundException}
@@ -10,7 +10,7 @@ import com.aws.kinesis.api.ApiClient
 import com.aws.kinesis.library.consumer.KclConsumer
 import com.aws.kinesis.library.producer.KplProducer
 import com.aws.kinesis.record.StringRecord
-import com.aws.kinesis.record.handler.{ConsumeRecordsHandler, RecordsHandler}
+import com.aws.kinesis.record.handler.{ConsumeRecordsHandler, RecordHandler}
 import com.typesafe.scalalogging.LazyLogging
 import com.utils.AppConfig
 
@@ -76,11 +76,13 @@ object ExampleLibraryAppMain extends LazyLogging {
 
   def getExampleConsumer(streamName: String, streamConsumerAppName: String, consumeRecordFileoutPathString: String): KclConsumer = {
     // composed records handler
-    val recordsHandler: ConsumeRecordsHandler.RecordsHandlerType = {
+    val recordsHandler: ConsumeRecordsHandler.KinesisRecordsHandlerType = {
       records:Vector[Record] => {
-        Future(RecordsHandler.debugStdout(records))
-        Future(RecordsHandler.printStdout(records))
-        Future(RecordsHandler.tmpFileout(consumeRecordFileoutPathString, append = false, records))
+        val stringRecords: Vector[StringRecord] = StringRecord.recordsToStringRecords(records)
+
+        Future(RecordHandler.printStdout(stringRecords))
+        Future(RecordHandler.debugStdout(stringRecords))
+        Future(RecordHandler.tmpFileout(stringRecords, yourConsumeFileoutPathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
       }
     }
 
