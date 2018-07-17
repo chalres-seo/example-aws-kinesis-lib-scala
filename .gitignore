@@ -41,3 +41,8 @@ hs_err_pid*
 
 .idea/
 out/
+tmp/*
+example/*
+
+# Avoid ignoring
+!example/example_record.txt
