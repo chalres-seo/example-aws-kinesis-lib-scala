@@ -135,5 +135,5 @@ object ApiConsumer extends LazyLogging {
   }
 
   @throws(classOf[IllegalArgumentException])
-  def apply(streamName: String): ApiConsumer = this(ApiClient(), streamName)
+  def apply(streamName: String): ApiConsumer = this.apply(ApiClient(), streamName)
 }

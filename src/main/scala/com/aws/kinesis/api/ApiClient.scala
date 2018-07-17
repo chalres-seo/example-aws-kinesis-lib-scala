@@ -442,8 +442,8 @@ object ApiClient extends LazyLogging {
       this.getKinesisClient(profileName, regionName))
   }
 
-  def apply(profileName: String): ApiClient = this(profileName, DEFAULT_AWS_REGION_NAME)
-  def apply(): ApiClient = this(DEFAULT_AWS_PROFILE_NAME, DEFAULT_AWS_REGION_NAME)
+  def apply(profileName: String): ApiClient = this.apply(profileName, DEFAULT_AWS_REGION_NAME)
+  def apply(): ApiClient = this.apply(DEFAULT_AWS_PROFILE_NAME, DEFAULT_AWS_REGION_NAME)
 
   private def getKinesisClient(profileName: String, regionName: String): AmazonKinesisAsync = {
     logger.debug("get kinesis async client")

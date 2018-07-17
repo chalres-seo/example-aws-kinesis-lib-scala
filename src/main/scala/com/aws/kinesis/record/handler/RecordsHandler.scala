@@ -12,7 +12,7 @@ import com.utils.AppUtils
 import scala.util.{Failure, Success, Try}
 
 object RecordsHandler extends LazyLogging with ConsumeRecordsHandler {
-  private val newLine: Array[Byte] = "\n".getBytes(StandardCharsets.UTF_8)
+  private val newLineByte: Array[Byte] = "\n".getBytes(StandardCharsets.UTF_8)
 
   def printStdout[T](records: Vector[Record]): Unit = {
     logger.debug(s"start print stdout handler. record count: ${records.size}")
@@ -27,59 +27,60 @@ object RecordsHandler extends LazyLogging with ConsumeRecordsHandler {
   def printData[T](records: Vector[Record]): Unit = {
     logger.debug(s"start print data handler. record count: ${records.size}")
     records.foreach(record => {
-      record.getData.rewind()
-      StringRecord.byteBufferToString(record.getData) match {
+      val buffer = record.getData.asReadOnlyBuffer()
+      buffer.rewind()
+
+      StringRecord.byteBufferToString(buffer) match {
         case Success(data) => println(data)
-        case Failure(t: Throwable) =>
+        case Failure(_: Throwable) =>
           logger.error("failed convert kinesis record byte data to string.")
-          logger.error(s"skkiped record. record: $record")
-          logger.error(t.getMessage, t)
+          logger.error(s"skipped record. record: $record")
       }
-      record.getData.rewind()
     })
   }
 
   def debugData[T](records: Vector[Record]): Unit = {
     logger.debug(s"start debug data handler. record count: ${records.size}")
     records.foreach(record => {
-      record.getData.rewind()
-      StringRecord.byteBufferToString(record.getData) match {
+      val buffer = record.getData.asReadOnlyBuffer()
+      buffer.rewind()
+
+      StringRecord.byteBufferToString(buffer) match {
         case Success(data) => logger.debug(data)
         case Failure(t: Throwable) =>
           logger.error("failed convert kinesis record byte data to string.")
-          logger.error(s"skkiped record. record: $record")
-          logger.error(t.getMessage, t)
+          logger.error(s"skipped record. record: $record")
       }
-      record.getData.rewind()
     })
   }
 
   def tmpFileout[T](filePathString: String, append: Boolean, records: Vector[Record]): Unit = {
     logger.debug(s"start tmp file out handler. record count: ${records.size}")
 
-
-    if (AppUtils.checkDirAndIfNotExistCreate(filePathString)) {
-      val fileOutputStream: FileOutputStream = new FileOutputStream(filePathString, append)
-
-      records.foreach(record => {
-        Try {
-          record.getData.rewind()
-          fileOutputStream.write(record.getData.array())
-          fileOutputStream.write(newLine)
-          record.getData.rewind()
-        } match {
-          case Success(_) =>
-            logger.debug(s"succeed write to tmp file. file: $filePathString, record: $record")
-          case Failure(t: Throwable) =>
-            logger.error(t.getMessage, t)
-            logger.error(s"failed write to tmp file. file: $filePathString, record: $record")
-        }
-      })
-
-      fileOutputStream.flush()
-      fileOutputStream.close()
-    } else {
-      logger.error(s"failed check dir. skipped records process. dir: $filePathString")
+    if (!AppUtils.checkDirAndIfNotExistCreate(filePathString)) {
+      logger.error(s"failed check dir. skipped records process. dir: $filePathString, record count: ${records.size}")
+      return
     }
+
+    val fileOutputStream: FileOutputStream = new FileOutputStream(filePathString, append)
+
+    records.foreach(record => {
+      Try {
+        val buffer = record.getData.asReadOnlyBuffer()
+        buffer.rewind()
+
+        fileOutputStream.write(buffer.array())
+        fileOutputStream.write(newLineByte)
+      } match {
+        case Success(_) =>
+          logger.debug(s"succeed write to tmp file. file: $filePathString, record: $record")
+        case Failure(t: Throwable) =>
+          logger.error(s"failed write to tmp file. file: $filePathString, record: $record")
+          logger.error(t.getMessage, t)
+      }
+    })
+
+    fileOutputStream.flush()
+    fileOutputStream.close()
   }
 }

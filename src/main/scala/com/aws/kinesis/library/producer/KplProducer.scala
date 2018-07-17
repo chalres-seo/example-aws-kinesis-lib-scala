@@ -50,7 +50,7 @@ case class KplProducer(profileName: String,
     this.getFailedRecords {
       for {
         record <- records
-        if record.getByteBuffer.isSuccess
+        if record.getByteBuffer.isDefined
       } yield {
         logger.debug(s"put record. stream name: $streamName, record: $record")
         (record, kinesisProducer.addUserRecord(streamName, record.getPartitionKey, record.getByteBuffer.get))
@@ -91,6 +91,6 @@ object KplProducer extends LazyLogging {
 
   @throws(classOf[IllegalArgumentException])
   def apply(streamName: String): KplProducer = {
-    this(defaultProfileName, defaultRegionName, streamName)
+    this.apply(defaultProfileName, defaultRegionName, streamName)
   }
 }

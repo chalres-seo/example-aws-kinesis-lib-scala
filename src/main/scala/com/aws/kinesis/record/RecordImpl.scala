@@ -9,7 +9,7 @@ import scala.util.Try
 trait RecordImpl[T] {
   def getPartitionKey: String
   def getData: T
-  def getByteBuffer: Try[ByteBuffer]
+  def getByteBuffer: Option[ByteBuffer]
   def getSequenceNumber: Option[String]
   def getKinesisRecord: Record
 }

@@ -75,7 +75,7 @@ object KclConsumer extends LazyLogging {
             streamName: String,
             consumeAppName: String)
            (handler: ConsumeRecordsHandler.RecordsHandlerType): KclConsumer = {
-    this(profileName: String,
+    this.apply(profileName: String,
       regionName: String,
       streamName: String,
       consumeAppName: String,
@@ -86,7 +86,7 @@ object KclConsumer extends LazyLogging {
             consumeAppName: String,
             initialStreamPosition: InitialPositionInStream)
            (handler: ConsumeRecordsHandler.RecordsHandlerType): KclConsumer = {
-    this(DEFAULT_AWS_PROFILE_NAME: String,
+    this.apply(DEFAULT_AWS_PROFILE_NAME: String,
       DEFAULT_AWS_REGION_NAME: String,
       streamName: String,
       consumeAppName: String,
@@ -96,7 +96,7 @@ object KclConsumer extends LazyLogging {
   def apply(streamName: String,
             consumeAppName: String)
            (handler: ConsumeRecordsHandler.RecordsHandlerType): KclConsumer = {
-    this(DEFAULT_AWS_PROFILE_NAME: String,
+    this.apply(DEFAULT_AWS_PROFILE_NAME: String,
       DEFAULT_AWS_REGION_NAME: String,
       streamName: String,
       consumeAppName: String,
