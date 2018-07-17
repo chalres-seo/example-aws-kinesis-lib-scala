@@ -10,7 +10,7 @@ import com.aws.kinesis.api.ApiClient
 import com.aws.kinesis.library.consumer.KclConsumer
 import com.aws.kinesis.library.producer.KplProducer
 import com.aws.kinesis.record.StringRecord
-import com.aws.kinesis.record.handler.{ConsumeRecordsHandler, RecordHandler}
+import com.aws.kinesis.record.handler.{ConsumeRecordsHandler, RecordsHandler}
 import com.typesafe.scalalogging.LazyLogging
 import com.utils.AppConfig
 
@@ -80,9 +80,9 @@ object ExampleLibraryAppMain extends LazyLogging {
       records:Vector[Record] => {
         val stringRecords: Vector[StringRecord] = StringRecord.recordsToStringRecords(records)
 
-        Future(RecordHandler.printStdout(stringRecords))
-        Future(RecordHandler.debugStdout(stringRecords))
-        Future(RecordHandler.tmpFileout(stringRecords, yourConsumeFileoutPathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
+        Future(RecordsHandler.printStdout(stringRecords))
+        Future(RecordsHandler.debugStdout(stringRecords))
+        Future(RecordsHandler.tmpFileout(stringRecords, yourConsumeFileoutPathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
       }
     }
 

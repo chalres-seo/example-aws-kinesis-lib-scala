@@ -8,7 +8,7 @@ import com.amazonaws.services.kinesis.model.{Record, Shard, ShardIteratorType}
 import com.aws.kinesis.api.consumer.ApiConsumer
 import com.aws.kinesis.api.producer.ApiProducer
 import com.aws.kinesis.record.StringRecord
-import com.aws.kinesis.record.handler.RecordHandler
+import com.aws.kinesis.record.handler.RecordsHandler
 import org.hamcrest.CoreMatchers._
 import com.typesafe.scalalogging.LazyLogging
 import org.junit.{Assert, FixMethodOrder, Test}
@@ -132,9 +132,9 @@ class TestApiClient extends LazyLogging {
       records:Vector[Record] => {
         val stringRecords: Vector[StringRecord] = StringRecord.recordsToStringRecords(records)
 
-        Future(RecordHandler.printStdout(stringRecords))
-        Future(RecordHandler.debugStdout(stringRecords))
-        Future(RecordHandler.tmpFileout(stringRecords, tmpFilePathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
+        Future(RecordsHandler.printStdout(stringRecords))
+        Future(RecordsHandler.debugStdout(stringRecords))
+        Future(RecordsHandler.tmpFileout(stringRecords, tmpFilePathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
       }
     }
 

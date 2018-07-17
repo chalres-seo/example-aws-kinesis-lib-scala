@@ -9,7 +9,7 @@ import com.utils.AppUtils
 
 import scala.util.{Failure, Success, Try}
 
-object RecordHandler extends LazyLogging with ConsumeRecordsHandler {
+object RecordsHandler extends LazyLogging with ConsumeRecordsHandler {
   private val newLineByteBuffer = "\n".getBytes
 
   def tmpFileout[T](records: Vector[RecordImpl[T]], filePathString: String, standardOpenOption: StandardOpenOption*): Unit = {

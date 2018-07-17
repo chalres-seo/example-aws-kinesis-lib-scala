@@ -15,7 +15,7 @@ import com.aws.kinesis.library.consumer.KclConsumer
 import com.aws.kinesis.library.consumer.processors.KclRecordsProcessorFactory
 import com.aws.kinesis.library.producer.KplProducer
 import com.aws.kinesis.record.StringRecord
-import com.aws.kinesis.record.handler.RecordHandler
+import com.aws.kinesis.record.handler.RecordsHandler
 import org.hamcrest.CoreMatchers._
 import com.typesafe.scalalogging.LazyLogging
 import com.utils.AppConfig
@@ -104,9 +104,9 @@ class TestKclConsumerAndKplProducer extends LazyLogging {
       records:Vector[Record] => {
         val stringRecords: Vector[StringRecord] = StringRecord.recordsToStringRecords(records)
 
-        Future(RecordHandler.printStdout(stringRecords))
-        Future(RecordHandler.debugStdout(stringRecords))
-        Future(RecordHandler.tmpFileout(stringRecords, tmpFilePathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
+        Future(RecordsHandler.printStdout(stringRecords))
+        Future(RecordsHandler.debugStdout(stringRecords))
+        Future(RecordsHandler.tmpFileout(stringRecords, tmpFilePathString, StandardOpenOption.APPEND, StandardOpenOption.CREATE))
       }
     }
 
