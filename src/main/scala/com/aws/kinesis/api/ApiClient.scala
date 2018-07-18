@@ -131,7 +131,7 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
   def isNotStreamReady(streamName: String): Boolean = !this.isStreamReady(streamName)
 
   def watchStreamReady(streamName: String, intervalMillis: Long): Future[Boolean] = {
-    logger.debug(s"watch stream ready. name : $streamName, interval : $intervalMillis millis")
+    logger.debug(s"watch stream ready. name : $streamName, interval millis: $intervalMillis")
 
     @tailrec
     def loop(streamStatus: String): Boolean = {
@@ -153,16 +153,18 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
 
   def watchStreamReady(streamName: String): Future[Boolean] = this.watchStreamReady(streamName, DEFAULT_INTERVAL_MILLIS)
 
-  def waitStreamReady(streamName: String, intervalMillis: Long, waitTimeMillis: Long): Boolean = {
-    Await.result(this.watchStreamReady(streamName, intervalMillis), Duration.apply(waitTimeMillis, TimeUnit.MILLISECONDS))
+  def waitStreamReady(streamName: String, intervalMillis: Long, duration: Duration): Boolean = {
+    logger.debug(s"wait stream ready. name: $streamName, interval millis: $intervalMillis, duration: $duration")
+
+    Await.result(this.watchStreamReady(streamName, intervalMillis), duration)
   }
 
   def waitStreamReady(streamName: String): Boolean = {
-    Await.result(this.watchStreamReady(streamName), Duration.Inf)
+    this.waitStreamReady(streamName, DEFAULT_INTERVAL_MILLIS, Duration.Inf)
   }
 
   def watchStreamDelete(streamName: String, intervalMillis: Long): Future[Boolean] = {
-    logger.debug(s"watch stream delete. name : $streamName, interval : $intervalMillis millis")
+    logger.debug(s"watch stream delete. name : $streamName, interval millis: $intervalMillis")
 
     @tailrec
     def loop(streamStatus: String): Boolean = {
@@ -184,12 +186,14 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
 
   def watchStreamDelete(streamName: String): Future[Boolean] = this.watchStreamDelete(streamName, DEFAULT_INTERVAL_MILLIS)
 
-  def waitStreamDelete(streamName: String, intervalMillis: Long, waitTimeMillis: Long): Boolean = {
-    Await.result(this.watchStreamDelete(streamName, intervalMillis), Duration.apply(waitTimeMillis, TimeUnit.MILLISECONDS))
+  def waitStreamDelete(streamName: String, intervalMillis: Long, duration: Duration): Boolean = {
+    logger.debug(s"wait stream delete. name: $streamName, interval millis: $intervalMillis, duration: $duration")
+
+    Await.result(this.watchStreamDelete(streamName, intervalMillis), duration)
   }
 
   def waitStreamDelete(streamName: String): Boolean = {
-    Await.result(this.watchStreamDelete(streamName), Duration.Inf)
+    this.waitStreamDelete(streamName, DEFAULT_INTERVAL_MILLIS, Duration.Inf)
   }
 
   /**
