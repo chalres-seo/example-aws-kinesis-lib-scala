@@ -84,13 +84,6 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
         logger.debug(s"get stream description. name : $streamName")
         KinesisRetry.apiRetry(kinesisClient.describeStream(streamName).getStreamDescription)
     }
-
-    tryGetStreamDesc
-      .recoverWith {
-        case t:Throwable =>
-          logger.error(s"failed get stream description. name: $streamName")
-          Failure(t)
-      }
   }
 
   private def getStreamDesc(streamName: String): Try[StreamDescription] = this.getStreamDesc(streamName, Option.empty[String])

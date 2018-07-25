@@ -2,17 +2,13 @@ package com.aws.kinesis.kcl
 
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.{lang, util}
-import java.util.concurrent.{TimeUnit, TimeoutException}
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import com.amazonaws.services.dynamodbv2.model.{ResourceInUseException, ResourceNotFoundException}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.InitialPositionInStream
 import com.amazonaws.services.kinesis.model.{Record, ShardIteratorType}
 import com.aws.kinesis.api.ApiClient
-import com.aws.kinesis.api.consumer.ApiConsumer
-import com.aws.kinesis.api.producer.ApiProducer
 import com.aws.kinesis.library.consumer.KclConsumer
-import com.aws.kinesis.library.consumer.processors.KclRecordsProcessorFactory
 import com.aws.kinesis.library.producer.KplProducer
 import com.aws.kinesis.record.StringRecord
 import com.aws.kinesis.record.handler.RecordsHandler
@@ -23,11 +19,8 @@ import org.junit.{Assert, FixMethodOrder, Test}
 import org.junit.runners.MethodSorters
 
 import scala.concurrent.{Await, Future}
-import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.collection.JavaConverters._
-import scala.io.Source
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class TestKclConsumerAndKplProducer extends LazyLogging {
