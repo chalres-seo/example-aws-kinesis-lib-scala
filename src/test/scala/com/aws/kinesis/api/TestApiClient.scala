@@ -146,4 +146,13 @@ class TestApiClient extends LazyLogging {
     Assert.assertThat(awaitResult.failed.get.getMessage, is(s"Futures timed out after [$waitSec seconds]"))
     Assert.assertThat(Files.newBufferedReader(Paths.get(tmpFilePathString)).lines().count().toInt, is(testProduceRecordCount))
   }
+
+  @Test
+  def testPutRecord():Unit = {
+    val apiProducer = ApiProducer(testStreamName)
+
+    apiProducer.produce(StringRecord.createExampleRecords(500))
+    Thread.sleep(1000)
+    Await.result(apiProducer.produce(StringRecord.createExampleRecords(500)), Duration.Inf)
+  }
 }

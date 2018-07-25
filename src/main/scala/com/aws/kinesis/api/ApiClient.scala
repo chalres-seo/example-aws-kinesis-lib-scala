@@ -76,7 +76,7 @@ class ApiClient(awsProfileName: String, awsRegionName: String, kinesisClient: Am
   @throws(classOf[LimitExceededException])
   @throws(classOf[ResourceNotFoundException])
   private def getStreamDesc(streamName: String, exclusiveStartShardId: Option[String]): Try[StreamDescription] = {
-    val tryGetStreamDesc = exclusiveStartShardId match {
+    exclusiveStartShardId match {
       case Some(exclusiveShardId) =>
         logger.debug(s"get stream description exclusive start shardId. name : $streamName, shardId : $exclusiveStartShardId")
         KinesisRetry.apiRetry(kinesisClient.describeStream(streamName, exclusiveShardId).getStreamDescription)
